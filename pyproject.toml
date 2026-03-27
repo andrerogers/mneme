@@ -1,0 +1,57 @@
+[project]
+name = "mneme"
+version = "0.1.0"
+description = "Memory service for brainstack — sessions, facts, semantic recall"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi~=0.118",
+    "uvicorn[standard]~=0.37",
+    "pydantic~=2.12",
+    "python-dotenv>=1.0",
+    "psycopg[binary]>=3.2",
+    "yoyo-migrations>=8.2",
+    "httpx>=0.28",
+    "brainstack-optics",
+]
+
+[tool.uv.sources]
+brainstack-optics = { path = "../optics/optics-py", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "pytest-asyncio~=0.24",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "taskipy>=1.14",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+lint.select = ["E", "F", "I", "UP", "B", "PL", "RUF"]
+lint.ignore = ["E501", "PLR2004", "PLC0415"]
+exclude = [".venv", ".uv", ".git", "dist", "build"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["optics", "optics.*", "yoyo"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.uv]
+python-preference = "only-managed"
+
+[tool.taskipy.tasks]
+dev      = "uvicorn mneme.app:app --reload --port 8612"
+test     = "pytest -v -s"
+lint     = "ruff check ."
+typecheck = "mypy mneme"
+fmt      = "ruff format ."
+check    = "ruff check . && mypy mneme && pytest -q"

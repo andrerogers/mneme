@@ -3,10 +3,13 @@ from optics import instrument_fastapi, setup_optics
 
 setup_optics("mneme", service_version="0.0.1")
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
+
+log = logging.getLogger(__name__)
 from fastapi.middleware.cors import CORSMiddleware
 
 from mneme import embeddings
@@ -120,8 +123,8 @@ async def remember(req: RememberRequest) -> RememberResponse:
     try:
         vecs = await embeddings.embed([req.content])
         embedding = vecs[0]
-    except Exception:
-        pass  # store fact without embedding if API unavailable
+    except Exception as exc:
+        log.warning("remember: embedding failed — storing fact without vector (%s)", exc)
     fid = await store.remember(
         content=req.content,
         workspace_id=req.workspace_id,

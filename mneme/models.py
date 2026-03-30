@@ -81,6 +81,31 @@ class RecallResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Message recall
+# ---------------------------------------------------------------------------
+
+
+class RecallMessagesRequest(BaseModel):
+    query: str
+    workspace_id: str | None = None
+    session_id: str | None = None
+    k: int = 5
+
+
+class MessageRecallResult(BaseModel):
+    id: int
+    session_id: str
+    role: str
+    content: str
+    created_at: str
+    score: float
+
+
+class RecallMessagesResponse(BaseModel):
+    results: list[MessageRecallResult]
+
+
+# ---------------------------------------------------------------------------
 # Preferences
 # ---------------------------------------------------------------------------
 

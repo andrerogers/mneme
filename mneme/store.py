@@ -1,11 +1,7 @@
 """Async PostgreSQL store for Mneme — sessions, messages, facts, preferences.
 
-Uses psycopg3 async with a lazy singleton connection (same pattern as
-hive/memory/store.py). Schema lives in the 'mneme' Postgres schema.
-
-Reconnect: each public method calls _run(fn) which catches OperationalError /
-InterfaceError, resets the connection singleton, and retries once — surviving
-Postgres restarts without requiring a service restart.
+Uses psycopg3 async with a connection pool (psycopg-pool). Schema lives in
+the 'mneme' Postgres schema. The pool handles reconnection automatically.
 """
 
 from __future__ import annotations
@@ -30,31 +26,39 @@ class Store:
 
     def __init__(self, dsn: str) -> None:
         self._dsn = dsn
-        self._conn: object | None = None
-        self._lock = asyncio.Lock()
+        self._pool: Any = None
+        self._pool_lock = asyncio.Lock()
 
-    async def _get_conn(self) -> Any:
-        import psycopg
+    async def _get_pool(self) -> Any:
+        if self._pool is not None:
+            return self._pool
+        async with self._pool_lock:
+            if self._pool is None:
+                from psycopg_pool import AsyncConnectionPool
 
-        async with self._lock:
-            if self._conn is None or getattr(self._conn, "closed", True):
-                log.info("mneme: opening PostgreSQL connection")
-                self._conn = await psycopg.AsyncConnection.connect(self._dsn, autocommit=True)
-        return self._conn
+                log.info("mneme: opening PostgreSQL connection pool")
+                pool = AsyncConnectionPool(
+                    self._dsn,
+                    min_size=2,
+                    max_size=10,
+                    open=False,
+                    kwargs={"autocommit": True},
+                )
+                await pool.open()
+                self._pool = pool
+        return self._pool
 
     async def _run(self, fn: Callable[[Any], Awaitable[_T]]) -> _T:
-        """Call fn(conn) with one reconnect retry on transient connection errors."""
-        import psycopg
+        """Call fn(conn) with a connection from the pool."""
+        pool = await self._get_pool()
+        async with pool.connection() as conn:
+            return await fn(conn)
 
-        try:
-            conn = await self._get_conn()
-            return await fn(conn)
-        except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
-            log.warning("mneme: connection lost (%s) — reconnecting", exc)
-            async with self._lock:
-                self._conn = None
-            conn = await self._get_conn()
-            return await fn(conn)
+    async def close(self) -> None:
+        """Shut down the connection pool."""
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
 
     async def init_db(self) -> None:
         """Run yoyo migrations in a thread executor."""
@@ -123,14 +127,29 @@ class Store:
 
         return await self._run(_do)
 
-    async def append_messages(self, session_id: str, messages: list[dict[str, str]]) -> None:
+    async def append_messages(
+        self,
+        session_id: str,
+        messages: list[dict[str, str]],
+        embeddings: list[list[float] | None] | None = None,
+    ) -> None:
         async def _do(conn: Any) -> None:
             async with conn.transaction():
-                for msg in messages:
-                    await conn.execute(
-                        "INSERT INTO mneme.messages (session_id, role, content) VALUES (%s, %s, %s)",
-                        (session_id, msg["role"], msg["content"]),
-                    )
+                for i, msg in enumerate(messages):
+                    emb = embeddings[i] if embeddings and i < len(embeddings) else None
+                    if emb:
+                        await conn.execute(
+                            "INSERT INTO mneme.messages "
+                            "(session_id, role, content, embedding) "
+                            "VALUES (%s, %s, %s, %s::vector)",
+                            (session_id, msg["role"], msg["content"], str(emb)),
+                        )
+                    else:
+                        await conn.execute(
+                            "INSERT INTO mneme.messages "
+                            "(session_id, role, content) VALUES (%s, %s, %s)",
+                            (session_id, msg["role"], msg["content"]),
+                        )
 
         await self._run(_do)
 
@@ -284,6 +303,65 @@ class Store:
                     "suggestion_id": r[1],
                     "action": r[2],
                     "created_at": r[3].isoformat(),
+                }
+                for r in rows
+            ]
+
+        return await self._run(_do)
+
+    # ── Message recall ───────────────────────────────────────────────────
+
+    async def recall_messages(
+        self,
+        embedding: list[float],
+        workspace_id: str | None = None,
+        session_id: str | None = None,
+        k: int = 5,
+    ) -> list[dict[str, Any]]:
+        async def _do(conn: Any) -> list[dict[str, Any]]:
+            vec_str = str(embedding)
+            if session_id:
+                rows = await (
+                    await conn.execute(
+                        "SELECT m.id, m.session_id, m.role, m.content, m.created_at, "
+                        "1 - (m.embedding <=> %s::vector) AS score "
+                        "FROM mneme.messages m "
+                        "WHERE m.session_id = %s AND m.embedding IS NOT NULL "
+                        "ORDER BY m.embedding <=> %s::vector LIMIT %s",
+                        (vec_str, session_id, vec_str, k),
+                    )
+                ).fetchall()
+            elif workspace_id:
+                rows = await (
+                    await conn.execute(
+                        "SELECT m.id, m.session_id, m.role, m.content, m.created_at, "
+                        "1 - (m.embedding <=> %s::vector) AS score "
+                        "FROM mneme.messages m "
+                        "JOIN mneme.sessions s ON s.id = m.session_id "
+                        "WHERE s.workspace_id = %s AND m.embedding IS NOT NULL "
+                        "ORDER BY m.embedding <=> %s::vector LIMIT %s",
+                        (vec_str, workspace_id, vec_str, k),
+                    )
+                ).fetchall()
+            else:
+                rows = await (
+                    await conn.execute(
+                        "SELECT m.id, m.session_id, m.role, m.content, m.created_at, "
+                        "1 - (m.embedding <=> %s::vector) AS score "
+                        "FROM mneme.messages m "
+                        "WHERE m.embedding IS NOT NULL "
+                        "ORDER BY m.embedding <=> %s::vector LIMIT %s",
+                        (vec_str, vec_str, k),
+                    )
+                ).fetchall()
+            return [
+                {
+                    "id": r[0],
+                    "session_id": r[1],
+                    "role": r[2],
+                    "content": r[3],
+                    "created_at": r[4].isoformat(),
+                    "score": float(r[5]),
                 }
                 for r in rows
             ]

@@ -18,8 +18,11 @@ from mneme.models import (
     AppendMessagesRequest,
     CreateSessionRequest,
     CreateSessionResponse,
+    MessageRecallResult,
     PrefIn,
     PrefOut,
+    RecallMessagesRequest,
+    RecallMessagesResponse,
     RecallRequest,
     RecallResponse,
     RecallResult,
@@ -46,6 +49,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _store = Store(DATABASE_URL)
         await _store.init_db()
     yield
+    if _store is not None:
+        await _store.close()
 
 
 app = FastAPI(title="Mneme", version="0.1.0", lifespan=lifespan)
@@ -108,9 +113,33 @@ async def append_messages(session_id: str, req: AppendMessagesRequest) -> None:
     data = await store.get_session(session_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    emb_vecs: list[list[float] | None] | None = None
+    try:
+        vecs = await embeddings.embed([m.content for m in req.messages])
+        emb_vecs = list(vecs)
+    except Exception as exc:
+        log.warning("append_messages: embedding failed — storing without vectors (%s)", exc)
     await store.append_messages(
-        session_id, [{"role": m.role, "content": m.content} for m in req.messages]
+        session_id,
+        [{"role": m.role, "content": m.content} for m in req.messages],
+        embeddings=emb_vecs,
     )
+
+
+# ── Message recall ────────────────────────────────────────────────────────
+
+
+@app.post("/sessions/recall", response_model=RecallMessagesResponse)
+async def recall_messages(req: RecallMessagesRequest) -> RecallMessagesResponse:
+    store = _get_store()
+    vecs = await embeddings.embed([req.query])
+    results = await store.recall_messages(
+        embedding=vecs[0],
+        workspace_id=req.workspace_id,
+        session_id=req.session_id,
+        k=req.k,
+    )
+    return RecallMessagesResponse(results=[MessageRecallResult(**r) for r in results])
 
 
 # ── Facts ─────────────────────────────────────────────────────────────────

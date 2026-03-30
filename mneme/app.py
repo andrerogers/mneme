@@ -132,7 +132,10 @@ async def append_messages(session_id: str, req: AppendMessagesRequest) -> None:
 @app.post("/sessions/recall", response_model=RecallMessagesResponse)
 async def recall_messages(req: RecallMessagesRequest) -> RecallMessagesResponse:
     store = _get_store()
-    vecs = await embeddings.embed([req.query])
+    try:
+        vecs = await embeddings.embed([req.query])
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Embedding unavailable: {exc}") from exc
     results = await store.recall_messages(
         embedding=vecs[0],
         workspace_id=req.workspace_id,

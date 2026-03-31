@@ -48,9 +48,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if DATABASE_URL:
         _store = Store(DATABASE_URL)
         await _store.init_db()
+        log.info("mneme started — store initialised")
+    else:
+        log.warning("mneme started — no DATABASE_URL, store unavailable")
     yield
     if _store is not None:
         await _store.close()
+        log.info("mneme shutting down — store closed")
 
 
 app = FastAPI(title="Mneme", version="0.1.0", lifespan=lifespan)
@@ -81,6 +85,7 @@ async def create_session(req: CreateSessionRequest | None = None) -> CreateSessi
     store = _get_store()
     workspace_id = req.workspace_id if req else None
     sid = await store.create_session(workspace_id)
+    log.info("session created workspace=%s session=%s", workspace_id, sid)
     return CreateSessionResponse(session_id=sid)
 
 
@@ -163,6 +168,9 @@ async def remember(req: RememberRequest) -> RememberResponse:
         source=req.source,
         tags=req.tags,
         embedding=embedding,
+    )
+    log.info(
+        "fact stored id=%s workspace=%s embedded=%s", fid, req.workspace_id, embedding is not None
     )
     return RememberResponse(id=fid)
 

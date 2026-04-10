@@ -273,28 +273,33 @@ class Store:
         workspace_id: str,
         action: str,
         suggestion_id: str | None = None,
+        task_summary: str | None = None,
+        feedback_text: str | None = None,
     ) -> str:
         pid = str(uuid.uuid4())
 
         async def _do(conn: Any) -> str:
             async with conn.transaction():
                 await conn.execute(
-                    "INSERT INTO mneme.preferences (id, workspace_id, suggestion_id, action) "
-                    "VALUES (%s, %s, %s, %s)",
-                    (pid, workspace_id, suggestion_id, action),
+                    "INSERT INTO mneme.preferences "
+                    "(id, workspace_id, suggestion_id, action, task_summary, feedback_text) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)",
+                    (pid, workspace_id, suggestion_id, action, task_summary, feedback_text),
                 )
             return pid
 
         return await self._run(_do)
 
-    async def list_prefs(self, workspace_id: str) -> list[dict[str, Any]]:
+    async def list_prefs(
+        self, workspace_id: str, limit: int = 100
+    ) -> list[dict[str, Any]]:
         async def _do(conn: Any) -> list[dict[str, Any]]:
             rows = await (
                 await conn.execute(
-                    "SELECT id, suggestion_id, action, created_at "
+                    "SELECT id, suggestion_id, action, created_at, task_summary, feedback_text "
                     "FROM mneme.preferences "
-                    "WHERE workspace_id = %s ORDER BY created_at DESC LIMIT 100",
-                    (workspace_id,),
+                    "WHERE workspace_id = %s ORDER BY created_at DESC LIMIT %s",
+                    (workspace_id, limit),
                 )
             ).fetchall()
             return [
@@ -303,6 +308,8 @@ class Store:
                     "suggestion_id": r[1],
                     "action": r[2],
                     "created_at": r[3].isoformat(),
+                    "task_summary": r[4],
+                    "feedback_text": r[5],
                 }
                 for r in rows
             ]

@@ -114,6 +114,9 @@ class PrefIn(BaseModel):
     workspace_id: str
     suggestion_id: str | None = None
     action: str  # 'accepted', 'ignored', 'rejected'
+    # Phase 3 additions — feedback loop signals
+    task_summary: str | None = None
+    feedback_text: str | None = None
 
 
 class PrefOut(BaseModel):
@@ -121,3 +124,6 @@ class PrefOut(BaseModel):
     suggestion_id: str | None
     action: str
     created_at: str
+    # Phase 3 additions
+    task_summary: str | None = None
+    feedback_text: str | None = None

@@ -178,6 +178,8 @@ def test_get_prefs() -> None:
                 "suggestion_id": "s-1",
                 "action": "accepted",
                 "created_at": "2026-01-01T00:00:00+00:00",
+                "task_summary": None,
+                "feedback_text": None,
             }
         ]
     )
@@ -185,3 +187,51 @@ def test_get_prefs() -> None:
         r = client.get("/prefs/ws-1")
     assert r.status_code == 200
     assert len(r.json()) == 1
+
+
+def test_record_pref_with_task_summary() -> None:
+    """POST /prefs with Phase 3 task_summary + feedback_text fields."""
+    store = _mock_store()
+    store.record_pref = AsyncMock(return_value="pref-2")
+    with patch(_STORE, store):
+        r = client.post(
+            "/prefs",
+            json={
+                "workspace_id": "ws-1",
+                "action": "rejected",
+                "task_summary": "refactored login flow",
+                "feedback_text": "broke existing tests",
+            },
+        )
+    assert r.status_code == 201
+    body = r.json()
+    assert body["id"] == "pref-2"
+    assert body["task_summary"] == "refactored login flow"
+    assert body["feedback_text"] == "broke existing tests"
+    # Verify store received the new fields
+    call_kwargs = store.record_pref.call_args.kwargs
+    assert call_kwargs["task_summary"] == "refactored login flow"
+    assert call_kwargs["feedback_text"] == "broke existing tests"
+
+
+def test_get_prefs_returns_new_fields() -> None:
+    """GET /prefs/:workspace_id returns task_summary and feedback_text."""
+    store = _mock_store()
+    store.list_prefs = AsyncMock(
+        return_value=[
+            {
+                "id": "pref-3",
+                "suggestion_id": None,
+                "action": "accepted",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "task_summary": "added auth middleware",
+                "feedback_text": None,
+            }
+        ]
+    )
+    with patch(_STORE, store):
+        r = client.get("/prefs/ws-1")
+    assert r.status_code == 200
+    item = r.json()[0]
+    assert item["task_summary"] == "added auth middleware"
+    assert item["feedback_text"] is None

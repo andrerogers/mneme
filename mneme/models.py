@@ -118,7 +118,7 @@ class PrefIn(BaseModel):
     task_summary: str | None = None
     feedback_text: str | None = None
     # Phase 4 additions — richer embeddings for semantic retrieval
-    task_type: str | None = None      # e.g. "bugfix", "feature", "refactor"
+    task_type: str | None = None  # e.g. "bugfix", "feature", "refactor"
     approach_notes: str | None = None  # how the task was approached
 
 

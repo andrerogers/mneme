@@ -287,8 +287,16 @@ class Store:
                     "(id, workspace_id, suggestion_id, action, task_summary, feedback_text, "
                     "task_type, approach_notes) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-                    (pid, workspace_id, suggestion_id, action, task_summary, feedback_text,
-                     task_type, approach_notes),
+                    (
+                        pid,
+                        workspace_id,
+                        suggestion_id,
+                        action,
+                        task_summary,
+                        feedback_text,
+                        task_type,
+                        approach_notes,
+                    ),
                 )
             return pid
 

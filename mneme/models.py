@@ -117,6 +117,9 @@ class PrefIn(BaseModel):
     # Phase 3 additions — feedback loop signals
     task_summary: str | None = None
     feedback_text: str | None = None
+    # Phase 4 additions — richer embeddings for semantic retrieval
+    task_type: str | None = None      # e.g. "bugfix", "feature", "refactor"
+    approach_notes: str | None = None  # how the task was approached
 
 
 class PrefOut(BaseModel):
@@ -127,3 +130,6 @@ class PrefOut(BaseModel):
     # Phase 3 additions
     task_summary: str | None = None
     feedback_text: str | None = None
+    # Phase 4 additions
+    task_type: str | None = None
+    approach_notes: str | None = None

@@ -275,6 +275,8 @@ class Store:
         suggestion_id: str | None = None,
         task_summary: str | None = None,
         feedback_text: str | None = None,
+        task_type: str | None = None,
+        approach_notes: str | None = None,
     ) -> str:
         pid = str(uuid.uuid4())
 
@@ -282,9 +284,11 @@ class Store:
             async with conn.transaction():
                 await conn.execute(
                     "INSERT INTO mneme.preferences "
-                    "(id, workspace_id, suggestion_id, action, task_summary, feedback_text) "
-                    "VALUES (%s, %s, %s, %s, %s, %s)",
-                    (pid, workspace_id, suggestion_id, action, task_summary, feedback_text),
+                    "(id, workspace_id, suggestion_id, action, task_summary, feedback_text, "
+                    "task_type, approach_notes) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                    (pid, workspace_id, suggestion_id, action, task_summary, feedback_text,
+                     task_type, approach_notes),
                 )
             return pid
 
@@ -294,7 +298,8 @@ class Store:
         async def _do(conn: Any) -> list[dict[str, Any]]:
             rows = await (
                 await conn.execute(
-                    "SELECT id, suggestion_id, action, created_at, task_summary, feedback_text "
+                    "SELECT id, suggestion_id, action, created_at, task_summary, feedback_text, "
+                    "task_type, approach_notes "
                     "FROM mneme.preferences "
                     "WHERE workspace_id = %s ORDER BY created_at DESC LIMIT %s",
                     (workspace_id, limit),
@@ -308,6 +313,8 @@ class Store:
                     "created_at": r[3].isoformat(),
                     "task_summary": r[4],
                     "feedback_text": r[5],
+                    "task_type": r[6],
+                    "approach_notes": r[7],
                 }
                 for r in rows
             ]

@@ -208,6 +208,8 @@ async def record_pref(req: PrefIn) -> PrefOut:
         suggestion_id=req.suggestion_id,
         task_summary=req.task_summary,
         feedback_text=req.feedback_text,
+        task_type=req.task_type,
+        approach_notes=req.approach_notes,
     )
     return PrefOut(
         id=pid,
@@ -216,4 +218,6 @@ async def record_pref(req: PrefIn) -> PrefOut:
         created_at="",  # client can ignore; real value is in DB
         task_summary=req.task_summary,
         feedback_text=req.feedback_text,
+        task_type=req.task_type,
+        approach_notes=req.approach_notes,
     )

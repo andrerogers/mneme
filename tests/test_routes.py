@@ -235,3 +235,23 @@ def test_get_prefs_returns_new_fields() -> None:
     item = r.json()[0]
     assert item["task_summary"] == "added auth middleware"
     assert item["feedback_text"] is None
+
+
+def test_get_prefs_passes_limit() -> None:
+    """GET /prefs/:workspace_id?limit=N passes limit to store."""
+    store = _mock_store()
+    store.list_prefs = AsyncMock(return_value=[])
+    with patch(_STORE, store):
+        r = client.get("/prefs/ws-1?limit=5")
+    assert r.status_code == 200
+    store.list_prefs.assert_awaited_once_with("ws-1", limit=5)
+
+
+def test_get_prefs_with_path_workspace_id() -> None:
+    """GET /prefs/{workspace_id:path} handles filesystem-style workspace IDs."""
+    store = _mock_store()
+    store.list_prefs = AsyncMock(return_value=[])
+    with patch(_STORE, store):
+        r = client.get("/prefs/home/user/project")
+    assert r.status_code == 200
+    store.list_prefs.assert_awaited_once_with("home/user/project", limit=100)

@@ -190,10 +190,12 @@ async def recall(req: RecallRequest) -> RecallResponse:
 # ── Preferences ───────────────────────────────────────────────────────────
 
 
-@app.get("/prefs/{workspace_id}", response_model=list[PrefOut])
-async def get_prefs(workspace_id: str) -> list[PrefOut]:
+@app.get("/prefs/{workspace_id:path}", response_model=list[PrefOut])
+async def get_prefs(
+    workspace_id: str, limit: int = Query(default=100, ge=1, le=500)
+) -> list[PrefOut]:
     store = _get_store()
-    rows = await store.list_prefs(workspace_id)
+    rows = await store.list_prefs(workspace_id, limit=limit)
     return [PrefOut(**r) for r in rows]
 
 

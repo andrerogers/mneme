@@ -290,9 +290,7 @@ class Store:
 
         return await self._run(_do)
 
-    async def list_prefs(
-        self, workspace_id: str, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    async def list_prefs(self, workspace_id: str, limit: int = 100) -> list[dict[str, Any]]:
         async def _do(conn: Any) -> list[dict[str, Any]]:
             rows = await (
                 await conn.execute(

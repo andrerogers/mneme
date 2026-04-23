@@ -84,13 +84,24 @@ class Store:
 
     # ── Sessions ──────────────────────────────────────────────────────────
 
-    async def create_session(self, workspace_id: str | None = None) -> str:
-        sid = str(uuid.uuid4())
+    async def create_session(
+        self,
+        workspace_id: str | None = None,
+        session_id: str | None = None,
+    ) -> str:
+        sid = session_id or str(uuid.uuid4())
 
         async def _do(conn: Any) -> str:
             async with conn.transaction():
+                # Upsert: if a caller-supplied session_id already exists with a
+                # NULL workspace_id, fill it in; never overwrite an existing
+                # workspace_id to avoid silent moves between workspaces.
                 await conn.execute(
-                    "INSERT INTO mneme.sessions (id, workspace_id) VALUES (%s, %s)",
+                    "INSERT INTO mneme.sessions (id, workspace_id) VALUES (%s, %s)"
+                    " ON CONFLICT (id) DO UPDATE"
+                    "   SET workspace_id = EXCLUDED.workspace_id"
+                    "   WHERE mneme.sessions.workspace_id IS NULL"
+                    "     AND EXCLUDED.workspace_id IS NOT NULL",
                     (sid, workspace_id),
                 )
             return sid

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 class CreateSessionRequest(BaseModel):
     workspace_id: str | None = None
+    session_id: str | None = None  # caller-specified ID; auto-UUID when absent
 
 
 class CreateSessionResponse(BaseModel):

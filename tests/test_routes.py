@@ -42,7 +42,7 @@ def test_create_session() -> None:
     store = _mock_store()
     store.create_session = AsyncMock(return_value="sid-1")
     with patch(_STORE, store):
-        r = client.post("/sessions", json={"workspace_id": "ws-1"})
+        r = client.post("/sessions", json={"session_id": "sid-1", "workspace_id": "ws-1"})
     assert r.status_code == 200
     assert r.json()["session_id"] == "sid-1"
 

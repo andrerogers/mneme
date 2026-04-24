@@ -81,12 +81,10 @@ async def health() -> dict[str, str]:
 
 
 @app.post("/sessions", response_model=CreateSessionResponse)
-async def create_session(req: CreateSessionRequest | None = None) -> CreateSessionResponse:
+async def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
     store = _get_store()
-    workspace_id = req.workspace_id if req else None
-    session_id = req.session_id if req else None
-    sid = await store.create_session(workspace_id, session_id=session_id)
-    log.info("session created workspace=%s session=%s", workspace_id, sid)
+    sid = await store.create_session(req.workspace_id, session_id=req.session_id)
+    log.info("session created workspace=%s session=%s", req.workspace_id, sid)
     return CreateSessionResponse(session_id=sid)
 
 

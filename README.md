@@ -34,6 +34,7 @@ Hive calls Mneme directly over HTTP — Cortex does not proxy these calls.
 | `GET` | `/sessions/{id}` | Fetch full message history for a session |
 | `GET` | `/sessions` | List sessions, optionally filtered by `workspace_id` |
 | `POST` | `/sessions/{id}/messages` | Append messages to a session (embeddings generated inline) |
+| `DELETE` | `/sessions/{id}` | Hard-delete session and all messages (CASCADE); 204 / 404 |
 | `POST` | `/sessions/recall` | Semantic search over message history via pgvector |
 | `POST` | `/remember` | Embed and store a fact in `mneme.facts` |
 | `POST` | `/recall` | Semantic search over stored facts via pgvector |

@@ -119,6 +119,18 @@ async def delete_session(session_id: str) -> None:
         raise HTTPException(status_code=404, detail="Session not found")
 
 
+@app.put("/sessions/{session_id}/messages", status_code=204)
+async def replace_messages(session_id: str, req: AppendMessagesRequest) -> None:
+    store = _get_store()
+    data = await store.get_session(session_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    await store.replace_messages(
+        session_id,
+        [{"role": m.role, "content": m.content} for m in req.messages],
+    )
+
+
 @app.post("/sessions/{session_id}/messages", status_code=204)
 async def append_messages(session_id: str, req: AppendMessagesRequest) -> None:
     store = _get_store()

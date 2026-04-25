@@ -164,6 +164,22 @@ class Store:
 
         await self._run(_do)
 
+    async def replace_messages(self, session_id: str, messages: list[dict[str, str]]) -> None:
+        """Delete all messages for *session_id* and insert *messages* atomically."""
+
+        async def _do(conn: Any) -> None:
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM mneme.messages WHERE session_id = %s", (session_id,)
+                )
+                for msg in messages:
+                    await conn.execute(
+                        "INSERT INTO mneme.messages (session_id, role, content) VALUES (%s, %s, %s)",
+                        (session_id, msg["role"], msg["content"]),
+                    )
+
+        await self._run(_do)
+
     async def delete_session(self, session_id: str) -> bool:
         async def _do(conn: Any) -> bool:
             async with conn.transaction():

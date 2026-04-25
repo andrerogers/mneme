@@ -164,6 +164,17 @@ class Store:
 
         await self._run(_do)
 
+    async def delete_session(self, session_id: str) -> bool:
+        async def _do(conn: Any) -> bool:
+            async with conn.transaction():
+                result = await conn.execute(
+                    "DELETE FROM mneme.sessions WHERE id = %s",
+                    (session_id,),
+                )
+            return result.rowcount > 0
+
+        return await self._run(_do)
+
     async def list_sessions(self, workspace_id: str | None = None) -> list[dict[str, Any]]:
         async def _do(conn: Any) -> list[dict[str, Any]]:
             if workspace_id:

@@ -111,6 +111,14 @@ async def list_sessions(
     return [SessionSummary(**r) for r in rows]
 
 
+@app.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(session_id: str) -> None:
+    store = _get_store()
+    deleted = await store.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
 @app.post("/sessions/{session_id}/messages", status_code=204)
 async def append_messages(session_id: str, req: AppendMessagesRequest) -> None:
     store = _get_store()

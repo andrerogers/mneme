@@ -134,3 +134,51 @@ class PrefOut(BaseModel):
     # Phase 4 additions
     task_type: str | None = None
     approach_notes: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Jobs
+# ---------------------------------------------------------------------------
+
+
+class JobIn(BaseModel):
+    id: str | None = None
+    kind: str
+    payload: dict = {}
+    idempotency_key: str | None = None
+
+
+class JobOut(BaseModel):
+    id: str
+    kind: str
+    payload: dict
+    status: str
+    idempotency_key: str | None
+    created_at: str
+    updated_at: str
+    result: dict | None = None
+
+
+class JobStatusUpdate(BaseModel):
+    status: str
+    result: dict | None = None
+
+
+# ---------------------------------------------------------------------------
+# Hooks
+# ---------------------------------------------------------------------------
+
+
+class HookDefIn(BaseModel):
+    name: str
+    on: str
+    run: str
+    enabled: bool = True
+
+
+class HookOut(BaseModel):
+    name: str
+    on: str
+    run: str
+    enabled: bool
+    created_at: str

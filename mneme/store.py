@@ -425,3 +425,119 @@ class Store:
             ]
 
         return await self._run(_do)
+
+    # ── Jobs ─────────────────────────────────────────────────────────────
+
+    async def put_job(
+        self,
+        job_id: str,
+        kind: str,
+        payload: dict[str, Any],
+        idempotency_key: str | None = None,
+    ) -> str:
+        async def _do(conn: Any) -> str:
+            import json as _json
+
+            async with conn.transaction():
+                await conn.execute(
+                    "INSERT INTO mneme.jobs (id, kind, payload, idempotency_key) "
+                    "VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (id) DO NOTHING",
+                    (job_id, kind, _json.dumps(payload), idempotency_key),
+                )
+            return job_id
+
+        return await self._run(_do)
+
+    async def get_job(self, job_id: str) -> dict[str, Any] | None:
+        async def _do(conn: Any) -> dict[str, Any] | None:
+            row = await (
+                await conn.execute(
+                    "SELECT id, kind, payload, status, idempotency_key, "
+                    "created_at, updated_at, result FROM mneme.jobs WHERE id = %s",
+                    (job_id,),
+                )
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "kind": row[1],
+                "payload": row[2],
+                "status": row[3],
+                "idempotency_key": row[4],
+                "created_at": row[5].isoformat(),
+                "updated_at": row[6].isoformat(),
+                "result": row[7],
+            }
+
+        return await self._run(_do)
+
+    async def update_job_status(
+        self,
+        job_id: str,
+        status: str,
+        result: dict[str, Any] | None = None,
+    ) -> None:
+        async def _do(conn: Any) -> None:
+            import json as _json
+
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE mneme.jobs SET status = %s, updated_at = now(), result = %s "
+                    "WHERE id = %s",
+                    (status, _json.dumps(result) if result is not None else None, job_id),
+                )
+
+        await self._run(_do)
+
+    # ── Hooks ─────────────────────────────────────────────────────────────
+
+    async def put_hook(
+        self,
+        name: str,
+        on_subject: str,
+        run: str,
+        enabled: bool = True,
+    ) -> None:
+        async def _do(conn: Any) -> None:
+            async with conn.transaction():
+                await conn.execute(
+                    "INSERT INTO mneme.hooks (name, on_subject, run, enabled) "
+                    "VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (name) DO UPDATE "
+                    "SET on_subject = EXCLUDED.on_subject, run = EXCLUDED.run, "
+                    "    enabled = EXCLUDED.enabled",
+                    (name, on_subject, run, enabled),
+                )
+
+        await self._run(_do)
+
+    async def list_hooks(self, enabled_only: bool = True) -> list[dict[str, Any]]:
+        async def _do(conn: Any) -> list[dict[str, Any]]:
+            if enabled_only:
+                rows = await (
+                    await conn.execute(
+                        "SELECT name, on_subject, run, enabled, created_at "
+                        "FROM mneme.hooks WHERE enabled = TRUE ORDER BY created_at",
+                    )
+                ).fetchall()
+            else:
+                rows = await (
+                    await conn.execute(
+                        "SELECT name, on_subject, run, enabled, created_at "
+                        "FROM mneme.hooks ORDER BY created_at",
+                    )
+                ).fetchall()
+            return [
+                {
+                    "name": r[0],
+                    "on": r[1],
+                    "run": r[2],
+                    "enabled": r[3],
+                    "created_at": r[4].isoformat(),
+                }
+                for r in rows
+            ]
+
+        return await self._run(_do)

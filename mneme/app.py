@@ -18,6 +18,11 @@ from mneme.models import (
     AppendMessagesRequest,
     CreateSessionRequest,
     CreateSessionResponse,
+    HookDefIn,
+    HookOut,
+    JobIn,
+    JobOut,
+    JobStatusUpdate,
     MessageRecallResult,
     PrefIn,
     PrefOut,
@@ -240,3 +245,69 @@ async def record_pref(req: PrefIn) -> PrefOut:
         task_type=req.task_type,
         approach_notes=req.approach_notes,
     )
+
+
+# ── Jobs ──────────────────────────────────────────────────────────────────
+
+
+@app.post("/jobs", status_code=201, response_model=JobOut)
+async def create_job(req: JobIn) -> JobOut:
+    import uuid
+
+    store = _get_store()
+    job_id = req.id or str(uuid.uuid4())
+    await store.put_job(
+        job_id=job_id,
+        kind=req.kind,
+        payload=req.payload,
+        idempotency_key=req.idempotency_key,
+    )
+    row = await store.get_job(job_id)
+    if row is None:
+        raise HTTPException(status_code=500, detail="Job creation failed")
+    return JobOut(**row)
+
+
+@app.get("/jobs/{job_id}", response_model=JobOut)
+async def get_job(job_id: str) -> JobOut:
+    store = _get_store()
+    row = await store.get_job(job_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JobOut(**row)
+
+
+@app.patch("/jobs/{job_id}/status", status_code=200, response_model=JobOut)
+async def update_job_status(job_id: str, req: JobStatusUpdate) -> JobOut:
+    store = _get_store()
+    if await store.get_job(job_id) is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    await store.update_job_status(job_id, req.status, req.result)
+    row = await store.get_job(job_id)
+    return JobOut(**row)  # type: ignore[arg-type]
+
+
+# ── Hooks ─────────────────────────────────────────────────────────────────
+
+
+@app.post("/hooks", status_code=201, response_model=HookOut)
+async def register_hook(req: HookDefIn) -> HookOut:
+    store = _get_store()
+    await store.put_hook(
+        name=req.name,
+        on_subject=req.on,
+        run=req.run,
+        enabled=req.enabled,
+    )
+    rows = await store.list_hooks(enabled_only=False)
+    row = next((r for r in rows if r["name"] == req.name), None)
+    if row is None:
+        raise HTTPException(status_code=500, detail="Hook creation failed")
+    return HookOut(**row)
+
+
+@app.get("/hooks", response_model=list[HookOut])
+async def list_hooks(enabled: bool = Query(default=True)) -> list[HookOut]:
+    store = _get_store()
+    rows = await store.list_hooks(enabled_only=enabled)
+    return [HookOut(**r) for r in rows]

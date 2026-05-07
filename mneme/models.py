@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Sessions
@@ -146,7 +146,7 @@ class PrefOut(BaseModel):
 class JobIn(BaseModel):
     id: str | None = None
     kind: str
-    payload: dict[str, Any] = {}
+    payload: dict[str, Any] = Field(default_factory=dict)
     idempotency_key: str | None = None
 
 

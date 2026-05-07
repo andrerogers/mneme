@@ -438,6 +438,20 @@ class Store:
         async def _do(conn: Any) -> str:
             import json as _json
 
+            # If an idempotency_key is supplied and already exists, return that
+            # row's id rather than raising UniqueViolation. ON CONFLICT can target
+            # only one constraint, and the PRIMARY KEY on id is the more common
+            # collision; we handle the idempotency_key collision explicitly.
+            if idempotency_key is not None:
+                existing = await (
+                    await conn.execute(
+                        "SELECT id FROM mneme.jobs WHERE idempotency_key = %s",
+                        (idempotency_key,),
+                    )
+                ).fetchone()
+                if existing is not None:
+                    return existing[0]
+
             async with conn.transaction():
                 await conn.execute(
                     "INSERT INTO mneme.jobs (id, kind, payload, idempotency_key) "

@@ -33,6 +33,7 @@ Hive calls Mneme directly over HTTP — Cortex does not proxy these calls.
 | `POST` | `/sessions` | Create a new session |
 | `GET` | `/sessions/{id}` | Fetch full message history for a session |
 | `GET` | `/sessions` | List sessions, optionally filtered by `workspace_id` |
+| `PUT` | `/sessions/{id}/messages` | Replace messages for a session |
 | `POST` | `/sessions/{id}/messages` | Append messages to a session (embeddings generated inline) |
 | `DELETE` | `/sessions/{id}` | Hard-delete session and all messages (CASCADE); 204 / 404 |
 | `POST` | `/sessions/recall` | Semantic search over message history via pgvector |
@@ -40,6 +41,11 @@ Hive calls Mneme directly over HTTP — Cortex does not proxy these calls.
 | `POST` | `/recall` | Semantic search over stored facts via pgvector |
 | `GET` | `/prefs/{workspace_id}` | Retrieve preference signals for a workspace |
 | `POST` | `/prefs` | Upsert a preference signal |
+| `POST` | `/jobs` | Submit a background job record (idempotent on `idempotency_key`) |
+| `GET` | `/jobs/{job_id}` | Fetch job status and result |
+| `PATCH` | `/jobs/{job_id}/status` | Update job status (running / done / failed) |
+| `POST` | `/hooks` | Upsert a hook definition (name is PK) |
+| `GET` | `/hooks` | List all enabled hook definitions |
 
 ---
 
@@ -54,13 +60,17 @@ mneme/
 │   ├── embeddings.py   OpenRouter embedding client (text-embedding-3-small, batch ≤100)
 │   └── config.py       Env-based config (DATABASE_URL, MNEME_PORT, OPENROUTER_API_KEY)
 ├── migrations/
-│   ├── 0001.create_schema.sql              mneme schema + sessions + messages
-│   ├── 0002.add_facts.sql                  mneme.facts table
-│   ├── 0003.add_facts_embedding.sql        embedding vector(1536) on facts
-│   ├── 0004.add_facts_hnsw_index.sql       HNSW index on facts.embedding
-│   └── 0005.add_messages_embedding.sql     embedding vector(1536) + HNSW on messages
+│   ├── 0001.create_sessions_and_messages.sql   mneme schema + sessions + messages tables
+│   ├── 0002.create_facts.sql                   mneme.facts table
+│   ├── 0003.create_preferences.sql             mneme.prefs table
+│   ├── 0004.add_facts_hnsw_index.sql           HNSW index on facts.embedding
+│   ├── 0005.add_messages_embedding.sql         embedding vector(1536) + HNSW on messages
+│   ├── 0006.add_pref_task_summary_feedback.sql task summary preference columns
+│   ├── 0007.add_pref_task_type_approach.sql    task type/approach preference columns
+│   ├── 0008.create_jobs.sql                    mneme.jobs table (id, kind, payload, status, idempotency_key)
+│   └── 0009.create_hooks.sql                   mneme.hooks table (name PK, on_subject, run, enabled)
 ├── tests/
-│   └── test_mneme_api.py   10 tests — health, sessions, messages, remember/recall
+│   └── test_routes.py   14 tests — health, sessions, messages, remember/recall, jobs, hooks
 ├── pyproject.toml
 └── .env.example
 ```
@@ -101,6 +111,8 @@ All tables live in the `mneme` schema in the shared PostgreSQL database.
 | `mneme.messages` | `id`, `session_id`, `role`, `content`, `embedding vector(1536)`, `created_at` |
 | `mneme.facts` | `id`, `content`, `embedding vector(1536)`, `tags`, `source`, `created_at` |
 | `mneme.prefs` | `workspace_id`, `key`, `value`, `updated_at` |
+| `mneme.jobs` | `id UUID`, `kind`, `payload jsonb`, `status`, `idempotency_key`, `created_at`, `updated_at`, `result jsonb` |
+| `mneme.hooks` | `name` (PK), `on_subject`, `run`, `enabled`, `created_at` |
 
 HNSW indexes on `mneme.facts.embedding` and `mneme.messages.embedding` for sub-millisecond cosine similarity search.
 

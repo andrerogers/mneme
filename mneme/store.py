@@ -187,7 +187,7 @@ class Store:
                     "DELETE FROM mneme.sessions WHERE id = %s",
                     (session_id,),
                 )
-            return result.rowcount > 0
+            return bool(result.rowcount > 0)
 
         return await self._run(_do)
 

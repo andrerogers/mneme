@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 # ---------------------------------------------------------------------------
@@ -144,24 +146,24 @@ class PrefOut(BaseModel):
 class JobIn(BaseModel):
     id: str | None = None
     kind: str
-    payload: dict = {}
+    payload: dict[str, Any] = {}
     idempotency_key: str | None = None
 
 
 class JobOut(BaseModel):
     id: str
     kind: str
-    payload: dict
+    payload: dict[str, Any]
     status: str
     idempotency_key: str | None
     created_at: str
     updated_at: str
-    result: dict | None = None
+    result: dict[str, Any] | None = None
 
 
 class JobStatusUpdate(BaseModel):
     status: str
-    result: dict | None = None
+    result: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------

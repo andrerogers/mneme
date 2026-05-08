@@ -450,7 +450,7 @@ class Store:
                     )
                 ).fetchone()
                 if existing is not None:
-                    return existing[0]
+                    return str(existing[0])
 
             async with conn.transaction():
                 await conn.execute(
